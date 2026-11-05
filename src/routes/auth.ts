@@ -1,24 +1,23 @@
 import { Router } from 'express';
-import { issueToken, verifyCredentials, verifyToken } from '../lib/auth.js';
+import { isValidToken } from '../lib/auth.js';
+import { config } from '../config.js';
 
 const router = Router();
 
 router.post('/login', (req, res) => {
-  const username = String(req.body?.username ?? '').trim();
   const password = String(req.body?.password ?? '');
-  if (!verifyCredentials(username, password)) {
-    res.status(401).json({ error: 'usuario o password invalido' });
+  if (!isValidToken(password)) {
+    res.status(401).json({ error: 'password invalida' });
     return;
   }
-  res.json({ token: issueToken(username), username });
+  res.json({ token: config.authPassword });
 });
 
 router.get('/check', (req, res) => {
   const header = req.header('authorization') ?? '';
   const match = header.match(/^Bearer\s+(.+)$/i);
   const token = match?.[1] ?? '';
-  const username = verifyToken(token);
-  res.json({ ok: Boolean(username), username });
+  res.json({ ok: isValidToken(token) });
 });
 
 export default router;

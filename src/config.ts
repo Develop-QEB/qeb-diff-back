@@ -41,28 +41,9 @@ const corsOrigins = (process.env.CORS_ORIGIN ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
-function parseUsers(raw: string): Map<string, string> {
-  const m = new Map<string, string>();
-  for (const pair of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
-    const idx = pair.indexOf(':');
-    if (idx <= 0) continue;
-    const u = pair.slice(0, idx).trim();
-    const p = pair.slice(idx + 1);
-    if (u && p) m.set(u, p);
-  }
-  return m;
-}
-
-const users = parseUsers(process.env.AUTH_USERS ?? '');
-if (users.size === 0) throw new Error('Falta AUTH_USERS en .env (formato: user1:pass1,user2:pass2)');
-
-const authSecret = process.env.AUTH_SECRET ?? '';
-if (authSecret.length < 16) throw new Error('Falta AUTH_SECRET en .env (minimo 16 caracteres)');
-
 export const config = {
   port: Number(process.env.PORT ?? 3100),
-  users,
-  authSecret,
+  authPassword: req('AUTH_PASSWORD'),
   asanaToken: (process.env.ASANA_TOKEN ?? '').trim(),
   autoFetch: (process.env.AUTO_FETCH ?? 'true') === 'true',
   corsOrigins,
