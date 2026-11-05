@@ -36,6 +36,14 @@ export interface Commit {
   subject: string;
   isMerge: boolean;
   isRevert: boolean;
+  asanaId?: string;
+}
+
+const ASANA_GID_RE = /#(\d{10,})/;
+
+function extractAsanaId(subject: string): string | undefined {
+  const m = subject.match(ASANA_GID_RE);
+  return m ? m[1] : undefined;
 }
 
 function parseCommits(raw: string): Commit[] {
@@ -52,6 +60,7 @@ function parseCommits(raw: string): Commit[] {
       subject,
       isMerge: parentList.length > 1,
       isRevert: /^revert\b/i.test(subject),
+      asanaId: extractAsanaId(subject),
     };
   });
 }

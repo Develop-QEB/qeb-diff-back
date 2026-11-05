@@ -44,6 +44,7 @@ const corsOrigins = (process.env.CORS_ORIGIN ?? '')
 export const config = {
   port: Number(process.env.PORT ?? 3100),
   authPassword: req('AUTH_PASSWORD'),
+  asanaToken: (process.env.ASANA_TOKEN ?? '').trim(),
   autoFetch: (process.env.AUTO_FETCH ?? 'true') === 'true',
   corsOrigins,
   repos: {

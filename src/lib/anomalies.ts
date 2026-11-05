@@ -16,6 +16,12 @@ export interface BranchAnomaly {
   isMerge: boolean;
   presence: Record<BranchName, 'exact' | 'equivalent' | 'absent'>;
   tipo: string;
+  asanaId?: string;
+}
+
+function extractAsanaIdFromSubject(subject: string): string | undefined {
+  const m = subject.match(/#(\d{10,})/);
+  return m ? m[1] : undefined;
 }
 
 async function branchContainment(repo: RepoName, branch: BranchName): Promise<Map<string, boolean>> {
@@ -113,6 +119,7 @@ export async function branchAnomalies(repo: RepoName): Promise<BranchAnomaly[]> 
       isMerge: m.parents > 1,
       presence,
       tipo,
+      asanaId: extractAsanaIdFromSubject(m.subject),
     });
   }
 
