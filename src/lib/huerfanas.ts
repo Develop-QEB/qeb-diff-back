@@ -73,7 +73,7 @@ async function fetchLado(db: DbName, lado: Lado): Promise<HuerfanaRow[]> {
         sc.bonificacion,
         sc.autorizacion_dg,
         sc.autorizacion_dcm,
-        sc.created_at,
+        COALESCE(pr.updated_at, pr.fecha) AS created_at,
         pr.solicitud_id,
         pr.id AS propuesta_id
       FROM solicitudCaras sc
@@ -89,7 +89,7 @@ async function fetchLado(db: DbName, lado: Lado): Promise<HuerfanaRow[]> {
               (pr.id IS NOT NULL AND t.id_propuesta = CAST(pr.id AS CHAR))
             )
         )
-      ORDER BY sc.created_at DESC
+      ORDER BY COALESCE(pr.updated_at, pr.fecha) DESC
       LIMIT 500
     `,
     [tipoFinal, tipoFiltro]
