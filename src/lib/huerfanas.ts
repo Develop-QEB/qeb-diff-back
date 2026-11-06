@@ -84,9 +84,9 @@ async function fetchLado(db: DbName, lado: Lado): Promise<HuerfanaRow[]> {
           FROM tareas t
           WHERE t.tipo IN (?, ?)
             AND (
-              (pr.solicitud_id IS NOT NULL AND t.id_solicitud = CAST(pr.solicitud_id AS CHAR))
+              (pr.solicitud_id IS NOT NULL AND t.id_solicitud COLLATE utf8mb4_unicode_ci = CAST(pr.solicitud_id AS CHAR) COLLATE utf8mb4_unicode_ci)
               OR
-              (pr.id IS NOT NULL AND t.id_propuesta = CAST(pr.id AS CHAR))
+              (pr.id IS NOT NULL AND t.id_propuesta COLLATE utf8mb4_unicode_ci = CAST(pr.id AS CHAR) COLLATE utf8mb4_unicode_ci)
             )
         )
       ORDER BY COALESCE(pr.updated_at, pr.fecha) DESC
