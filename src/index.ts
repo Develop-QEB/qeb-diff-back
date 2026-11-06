@@ -9,6 +9,7 @@ import diagnostico from './routes/diagnostico.js';
 import auth from './routes/auth.js';
 import asana from './routes/asana.js';
 import huerfanas from './routes/huerfanas.js';
+import logs from './routes/logs.js';
 import { requireAuth } from './lib/auth.js';
 
 const app = express();
@@ -40,6 +41,7 @@ app.use('/api/ignored', ignored);
 app.use('/api/diagnostico', diagnostico);
 app.use('/api/asana', asana);
 app.use('/api/huerfanas', huerfanas);
+app.use('/api/logs', logs);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[qeb-diff]', err);

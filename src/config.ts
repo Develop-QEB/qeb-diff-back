@@ -57,6 +57,16 @@ export const config = {
     release: dbCfg('RELEASE'),
     stage: dbCfg('STAGE'),
   } as Record<DbName, DbConfig>,
+  logs: {
+    pm2: {
+      stage: (process.env.LOGS_PM2_STAGE ?? '').trim(),
+      dev: (process.env.LOGS_PM2_DEV ?? '').trim(),
+      release: (process.env.LOGS_PM2_RELEASE ?? '').trim(),
+    },
+    doAppId: (process.env.DO_APP_ID ?? '').trim(),
+    doComponent: (process.env.DO_COMPONENT ?? '').trim(),
+    doToken: (process.env.DO_TOKEN ?? '').trim(),
+  },
 };
 
 export const DB_NAMES: DbName[] = ['main', 'dev', 'release', 'stage'];
