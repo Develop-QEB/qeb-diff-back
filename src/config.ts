@@ -41,6 +41,35 @@ const corsOrigins = (process.env.CORS_ORIGIN ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
+export type LogSourceType = 'pm2' | 'do';
+export interface LogSource {
+  key: string;
+  label: string;
+  type: LogSourceType;
+  pm2Name?: string;
+}
+
+// LOGS_SOURCES = "key:type:arg, key:type:arg, ..."
+//   key:pm2:<nombreProcesoPm2>  -> jala `pm2 logs <nombre>` del droplet
+//   key:do                      -> jala DigitalOcean App Platform (usa DO_*)
+// Ej: release:pm2:qeb-back-release,stage:pm2:qeb-back-stage,bi:pm2:bi-back
+function parseLogSources(raw: string): LogSource[] {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((item): LogSource | null => {
+      const [rawKey, rawType, ...rest] = item.split(':');
+      const key = (rawKey ?? '').trim();
+      if (!key) return null;
+      const type = (rawType ?? 'pm2').trim().toLowerCase();
+      if (type === 'do') return { key, label: key, type: 'do' };
+      const pm2Name = rest.join(':').trim() || key;
+      return { key, label: key, type: 'pm2', pm2Name };
+    })
+    .filter((s): s is LogSource => s !== null);
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 3100),
   authPassword: req('AUTH_PASSWORD'),
@@ -58,11 +87,7 @@ export const config = {
     stage: dbCfg('STAGE'),
   } as Record<DbName, DbConfig>,
   logs: {
-    pm2: {
-      stage: (process.env.LOGS_PM2_STAGE ?? '').trim(),
-      dev: (process.env.LOGS_PM2_DEV ?? '').trim(),
-      release: (process.env.LOGS_PM2_RELEASE ?? '').trim(),
-    },
+    sources: parseLogSources(process.env.LOGS_SOURCES ?? ''),
     doAppId: (process.env.DO_APP_ID ?? '').trim(),
     doComponent: (process.env.DO_COMPONENT ?? '').trim(),
     doToken: (process.env.DO_TOKEN ?? '').trim(),

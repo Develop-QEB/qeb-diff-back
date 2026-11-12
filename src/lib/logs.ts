@@ -1,11 +1,15 @@
 import { spawn } from 'node:child_process';
-import { config } from '../config.js';
+import { config, LogSource } from '../config.js';
 
-export type LogEnv = 'main' | 'dev' | 'release' | 'stage';
-export const LOG_ENVS: LogEnv[] = ['main', 'dev', 'release', 'stage'];
+export interface LogSourceInfo {
+  key: string;
+  label: string;
+  type: 'pm2' | 'do';
+  configured: boolean;
+}
 
 export interface LogsResponse {
-  env: LogEnv;
+  env: string;
   source: 'pm2' | 'digitalocean';
   lines: string[];
   cursor: string | null;
@@ -15,6 +19,20 @@ export interface LogsResponse {
 
 const MAX_LINES = 500;
 const DEFAULT_LINES = 200;
+
+export function listSources(): LogSourceInfo[] {
+  const doReady = !!(config.logs.doAppId && config.logs.doComponent && config.logs.doToken);
+  return config.logs.sources.map((s) => ({
+    key: s.key,
+    label: s.label,
+    type: s.type,
+    configured: s.type === 'pm2' ? !!s.pm2Name : doReady,
+  }));
+}
+
+function findSource(key: string): LogSource | undefined {
+  return config.logs.sources.find((s) => s.key === key);
+}
 
 function sliceSince(all: string[], cursor: string | null): string[] {
   if (!cursor) return all;
@@ -76,32 +94,32 @@ async function fetchDo(appId: string, componentName: string, token: string, line
   return all.slice(-lines);
 }
 
-export async function fetchLogs(env: LogEnv, cursor: string | null, lines: number): Promise<LogsResponse> {
+export async function fetchLogs(sourceKey: string, cursor: string | null, lines: number): Promise<LogsResponse> {
+  const src = findSource(sourceKey);
+  if (!src) throw new Error(`fuente de logs desconocida: ${sourceKey}`);
+
   const n = Math.min(MAX_LINES, Math.max(10, lines || DEFAULT_LINES));
   let source: 'pm2' | 'digitalocean';
   let all: string[];
 
-  if (env === 'main') {
-    const appId = config.logs.doAppId;
-    const component = config.logs.doComponent;
-    const token = config.logs.doToken;
-    if (!appId || !component || !token) {
-      throw new Error('main sin configurar: faltan DO_APP_ID / DO_COMPONENT / DO_TOKEN en .env');
+  if (src.type === 'do') {
+    const { doAppId, doComponent, doToken } = config.logs;
+    if (!doAppId || !doComponent || !doToken) {
+      throw new Error(`${src.key} sin configurar: faltan DO_APP_ID / DO_COMPONENT / DO_TOKEN en .env`);
     }
     source = 'digitalocean';
-    all = await fetchDo(appId, component, token, n);
+    all = await fetchDo(doAppId, doComponent, doToken, n);
   } else {
-    const procName = config.logs.pm2[env];
-    if (!procName) throw new Error(`${env} sin configurar: falta LOGS_PM2_${env.toUpperCase()} en .env`);
+    if (!src.pm2Name) throw new Error(`${src.key} sin configurar: falta el nombre de proceso pm2`);
     source = 'pm2';
-    all = await fetchPm2(procName, n);
+    all = await fetchPm2(src.pm2Name, n);
   }
 
   const sliced = sliceSince(all, cursor);
   const last = all[all.length - 1] ?? null;
 
   return {
-    env,
+    env: src.key,
     source,
     lines: sliced,
     cursor: last,
