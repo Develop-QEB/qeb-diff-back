@@ -8,6 +8,15 @@ export interface LogSourceInfo {
   configured: boolean;
 }
 
+export type ProcState = 'online' | 'stopped' | 'errored' | 'launching' | 'stopping' | 'unknown';
+export interface ProcStatus {
+  state: ProcState;
+  uptimeMs: number | null;
+  restarts: number | null;
+  cpu: number | null;
+  mem: number | null;
+}
+
 export interface LogsResponse {
   env: string;
   source: 'pm2' | 'digitalocean';
@@ -15,6 +24,7 @@ export interface LogsResponse {
   cursor: string | null;
   truncated: boolean;
   fetchedAt: string;
+  proc: ProcStatus | null;
 }
 
 const MAX_LINES = 500;
@@ -94,6 +104,34 @@ async function fetchDo(appId: string, componentName: string, token: string, line
   return all.slice(-lines);
 }
 
+async function pm2Jlist(): Promise<any[]> {
+  const out = await runCmd('pm2', ['jlist'], 5000);
+  const t = out.trim();
+  const start = t.indexOf('[');
+  if (start < 0) return [];
+  try { return JSON.parse(t.slice(start)); } catch { return []; }
+}
+
+async function procStatus(name: string): Promise<ProcStatus | null> {
+  try {
+    const list = await pm2Jlist();
+    const p = list.find((x) => x && x.name === name);
+    if (!p) return { state: 'unknown', uptimeMs: null, restarts: null, cpu: null, mem: null };
+    const env = p.pm2_env ?? {};
+    const state = (env.status ?? 'unknown') as ProcState;
+    const uptimeMs = state === 'online' && env.pm_uptime ? Date.now() - Number(env.pm_uptime) : null;
+    return {
+      state,
+      uptimeMs,
+      restarts: env.restart_time != null ? Number(env.restart_time) : null,
+      cpu: p.monit?.cpu != null ? Number(p.monit.cpu) : null,
+      mem: p.monit?.memory != null ? Number(p.monit.memory) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchLogs(sourceKey: string, cursor: string | null, lines: number): Promise<LogsResponse> {
   const src = findSource(sourceKey);
   if (!src) throw new Error(`fuente de logs desconocida: ${sourceKey}`);
@@ -101,6 +139,7 @@ export async function fetchLogs(sourceKey: string, cursor: string | null, lines:
   const n = Math.min(MAX_LINES, Math.max(10, lines || DEFAULT_LINES));
   let source: 'pm2' | 'digitalocean';
   let all: string[];
+  let proc: ProcStatus | null = null;
 
   if (src.type === 'do') {
     const { doAppId, doComponent, doToken } = config.logs;
@@ -112,7 +151,9 @@ export async function fetchLogs(sourceKey: string, cursor: string | null, lines:
   } else {
     if (!src.pm2Name) throw new Error(`${src.key} sin configurar: falta el nombre de proceso pm2`);
     source = 'pm2';
-    all = await fetchPm2(src.pm2Name, n);
+    const [logLines, st] = await Promise.all([fetchPm2(src.pm2Name, n), procStatus(src.pm2Name)]);
+    all = logLines;
+    proc = st;
   }
 
   const sliced = sliceSince(all, cursor);
@@ -125,5 +166,16 @@ export async function fetchLogs(sourceKey: string, cursor: string | null, lines:
     cursor: last,
     truncated: !cursor && all.length >= n,
     fetchedAt: new Date().toISOString(),
+    proc,
   };
+}
+
+// Reinicia el proceso pm2 de una fuente configurada (pm2 restart <name>).
+export async function restartSource(sourceKey: string): Promise<{ ok: boolean; proc: ProcStatus | null }> {
+  const src = findSource(sourceKey);
+  if (!src) throw new Error(`fuente desconocida: ${sourceKey}`);
+  if (src.type !== 'pm2' || !src.pm2Name) throw new Error(`${sourceKey} no es un proceso pm2 reiniciable`);
+  await runCmd('pm2', ['restart', src.pm2Name, '--update-env'], 20000);
+  const proc = await procStatus(src.pm2Name);
+  return { ok: true, proc };
 }

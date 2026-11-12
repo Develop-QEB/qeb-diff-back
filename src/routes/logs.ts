@@ -1,9 +1,17 @@
 import { Router } from 'express';
-import { fetchLogs, listSources } from '../lib/logs.js';
+import { fetchLogs, listSources, restartSource } from '../lib/logs.js';
 
 const router = Router();
 
 router.get('/sources', (_req, res) => res.json(listSources()));
+
+router.post('/:source/restart', async (req, res, next) => {
+  try {
+    res.json(await restartSource(String(req.params.source)));
+  } catch (e) {
+    next(e);
+  }
+});
 
 router.get('/:source', async (req, res, next) => {
   try {
