@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { config, LogSource } from '../config.js';
 
 export interface LogSourceInfo {
@@ -178,4 +179,25 @@ export async function restartSource(sourceKey: string): Promise<{ ok: boolean; p
   await runCmd('pm2', ['restart', src.pm2Name, '--update-env'], 20000);
   const proc = await procStatus(src.pm2Name);
   return { ok: true, proc };
+}
+
+async function procCwd(name: string): Promise<string | null> {
+  const list = await pm2Jlist();
+  const p = list.find((x) => x && x.name === name);
+  return p?.pm2_env?.pm_cwd ?? null;
+}
+
+// Redeploy: corre el deploy.sh propio del proceso (baja su rama, rebuild, pm2 restart).
+// Fire-and-forget + detached: sobrevive al reinicio del propio proceso (p.ej. 'diff').
+export async function redeploySource(sourceKey: string): Promise<{ ok: boolean; started: boolean; script: string }> {
+  const src = findSource(sourceKey);
+  if (!src) throw new Error(`fuente desconocida: ${sourceKey}`);
+  if (src.type !== 'pm2' || !src.pm2Name) throw new Error(`${sourceKey} no es un proceso pm2`);
+  const cwd = await procCwd(src.pm2Name);
+  if (!cwd) throw new Error(`no encontré el directorio de ${src.pm2Name}`);
+  const script = `${cwd}/deploy.sh`;
+  if (!existsSync(script)) throw new Error(`${src.pm2Name} no tiene deploy.sh en ${cwd}`);
+  const child = spawn('bash', [script], { cwd, detached: true, stdio: 'ignore' });
+  child.unref();
+  return { ok: true, started: true, script };
 }
